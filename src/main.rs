@@ -3,35 +3,23 @@ use std::{env, fmt::Display, fs, path::PathBuf, process::Command};
 use dialoguer::theme::ColorfulTheme;
 use prost::Message;
 
-#[derive(Clone, PartialEq, ::prost::Message)]
-struct ClipPb {
-    #[prost(message, required, tag = "1")]
-    pub data: ClipPbData,
-    #[prost(string, tag = "7")]
-    pub name: String,
+pub mod steam {
+    pub mod webuimessages_gamerecordingfiles {
+        include!(concat!(env!("OUT_DIR"), "/_.rs"));
+    }
 }
 
-#[derive(Clone, PartialEq, ::prost::Message)]
-struct ClipPbData {
-    #[prost(message, required, tag = "5")]
-    pub video: ClipPbDataVideo,
-}
-
-#[derive(Clone, PartialEq, ::prost::Message)]
-struct ClipPbDataVideo {
-    #[prost(string, tag = "1")]
-    pub video_dir: String,
-}
+use steam::webuimessages_gamerecordingfiles::*;
 
 #[derive(Debug)]
 struct Clip {
     path: PathBuf,
-    info: ClipPb,
+    info: CGameRecordingClipFile,
 }
 
 impl Display for Clip {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.info.name)
+        write!(f, "{}", self.info.name.as_deref().unwrap_or("???"))
     }
 }
 
@@ -64,8 +52,10 @@ fn main() {
         .rev()
         .map(|entry| Clip {
             path: entry.path(),
-            info: ClipPb::decode(fs::read(entry.path().join("clip.pb")).unwrap().as_slice())
-                .unwrap(),
+            info: CGameRecordingClipFile::decode(
+                fs::read(entry.path().join("clip.pb")).unwrap().as_slice(),
+            )
+            .unwrap(),
         })
         .collect::<Vec<_>>();
 
@@ -77,10 +67,18 @@ fn main() {
 
     let clip = &clips[choice];
 
-    let video_dir = clip
-        .path
-        .join("video")
-        .join(&clip.info.data.video.video_dir);
+    let video_dir = clip.path.join("video").join(
+        clip.info
+            .timelines
+            .first()
+            .unwrap()
+            .recordings
+            .first()
+            .unwrap()
+            .recording_id
+            .as_ref()
+            .unwrap(),
+    );
 
     Command::new("sh")
         .current_dir(&video_dir)
