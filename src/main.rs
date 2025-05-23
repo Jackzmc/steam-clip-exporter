@@ -63,6 +63,25 @@ fn find_recording_dir() -> PathBuf {
     PathBuf::from(kv.game_recording.background_record_path)
 }
 
+fn get_clip_index(clips: &[Clip], clip_name: Option<String>) -> usize {
+    if let Some(clip_name) = clip_name {
+        for (i, clip) in clips.iter().enumerate() {
+            if clip.path.file_stem().unwrap().to_string_lossy() == clip_name {
+                return i;
+            }
+        }
+        eprintln!("Could not find clip \"{}\"", clip_name);
+        std::process::exit(1);
+    } else {
+        let choice = dialoguer::FuzzySelect::with_theme(&ColorfulTheme::default())
+            .items(&clips)
+            .default(0)
+            .interact()
+            .unwrap();
+        choice
+    }
+}
+
 fn main() {
     let recording_dir = find_recording_dir();
     println!("recording path = {:?}", recording_dir);
@@ -88,13 +107,12 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
-    let choice = dialoguer::FuzzySelect::with_theme(&ColorfulTheme::default())
-        .items(&clips)
-        .default(0)
-        .interact()
-        .unwrap();
+    let mut args = std::env::args();
+    args.next().unwrap();
+    let clip_name = args.next();
 
-    let clip = &clips[choice];
+    let clip_index = get_clip_index(&clips, clip_name);
+    let clip = &clips[clip_index];
 
     let video_dir = clip.path.join("video").join(
         clip.info

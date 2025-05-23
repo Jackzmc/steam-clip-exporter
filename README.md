@@ -14,10 +14,12 @@ $ cargo install --git=https://github.com/darkwater/steam-clip-exporter
 Usage
 -----
 
-1. Run `steam-clip-exporter`
+1. Run `steam-clip-exporter [clip name]*`
 2. Select clip to export
 3. `ffmpeg` is used to glue the chunks together in a fraction of a second, no re-encoding
 4. Path of output file is printed to stdout
+
+\* If clip name is not set, shows menu. Otherwise, you can directly provide clip name to export
 
 Suggestion:
 
