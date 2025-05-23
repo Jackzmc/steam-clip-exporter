@@ -1,7 +1,9 @@
 use std::{env, fmt::Display, fs, path::PathBuf, process::Command};
-
+use std::fs::File;
+use std::io::Read;
 use dialoguer::theme::ColorfulTheme;
 use prost::Message;
+use serde::Deserialize;
 
 pub mod steam {
     pub mod webuimessages_gamerecordingfiles {
@@ -19,26 +21,53 @@ struct Clip {
 
 impl Display for Clip {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.info.name.as_deref().unwrap_or("???"))
+        write!(f, "{}", self.info.name.as_deref()
+            .or(self.path.file_stem().map(|s| s.to_str().unwrap_or("???")))
+            .unwrap_or("???"))
     }
 }
 
-fn main() {
+fn find_local_userdata_dir() -> PathBuf {
     let userdata = steam_dir().join("userdata");
     let users = userdata
         .read_dir()
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
+    // println!("users {:?}", users);
+    let user_dir = users.iter().filter(|e| e.file_name() != "anonymous").next().expect("no userdata folder found");
+    user_dir.path()
+}
 
-    let user = if let [user] = &users[..] {
-        user.path()
-    } else {
-        unimplemented!()
-    };
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct UserLocalConfigStore {
+    game_recording: GameRecording
+}
 
-    let mut clips = user
-        .join("gamerecordings")
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct GameRecording {
+    background_record_path: String
+}
+
+fn find_recording_dir() -> PathBuf {
+    let userdata_dir = find_local_userdata_dir();
+    println!("user_data path = {:?}", userdata_dir);
+    let config_path = userdata_dir.join("config").join("localconfig.vdf");
+    let mut config_file = File::open(config_path).unwrap();
+    let mut contents = String::new();
+    File::read_to_string(&mut config_file, &mut contents).expect("failed to read localconfig.vdf");
+
+    let kv = keyvalues_serde::from_str::<UserLocalConfigStore>(&contents).expect("failed to parse localconfig.vdf");
+    PathBuf::from(kv.game_recording.background_record_path)
+}
+
+fn main() {
+    let recording_dir = find_recording_dir();
+    println!("recording path = {:?}", recording_dir);
+
+    let mut clips = recording_dir
         .join("clips")
         .read_dir()
         .unwrap()
